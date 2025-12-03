@@ -16,17 +16,19 @@ st.markdown(
 st.write("polytemp_10m_YYYYMMDD.csv を読み込んで、気温で色分けしたポイントマップと 0.2℃刻みの等温線を表示します。")
 
 # -------------------------------------------------------
-# 観測点リスト（黒丸＋ラベルで表示したい地点）
-#   fid, name, Latitude, Longitude, Altitude
+# 観測点リスト（fid, name, Latitude, Longitude, Altitude）
 # -------------------------------------------------------
 poi_data = [
-    {"fid": 1,  "name": "KOA1",          "lat": 36.10615778,  "lon": 137.8787694,  "alt": 1035},
-    {"fid": 2,  "name": "KOA2",          "lat": 36.10599167,  "lon": 137.8787083,  "alt": 1017},
-    {"fid": 3,  "name": "KOA3",          "lat": 36.10616111,  "lon": 137.8790889,  "alt": 1007},
-    {"fid": 4,  "name": "KOA4",          "lat": 36.10617778,  "lon": 137.8789667,  "alt": 1005},
-     {"fid": 8,  "name": "ondo1_2", "lat": 36.1054,      "lon": 137.8796833,  "alt": 1011},
-    {"fid": 9,  "name": "ondo3_4", "lat": 36.10475,     "lon": 137.8803,     "alt": 960},
-    {"fid": 10, "name": "ondo5_6", "lat": 36.1041,      "lon": 137.8808167,  "alt": 914},
+    {"fid": 1,  "name": "KOA山1（洗馬）",         "lat": 36.10615778,  "lon": 137.8787694,  "alt": 1035},
+    {"fid": 2,  "name": "KOA山2（洗馬）",         "lat": 36.10599167,  "lon": 137.8787083,  "alt": 1017},
+    {"fid": 3,  "name": "KOA山3（洗馬）",         "lat": 36.10616111,  "lon": 137.8790889,  "alt": 1007},
+    {"fid": 4,  "name": "KOA山4（洗馬）",         "lat": 36.10617778,  "lon": 137.8789667,  "alt": 1005},
+    {"fid": 5,  "name": "KOA5WW（箕輪）",         "lat": 35.89755278,  "lon": 137.9560553,  "alt": 783},
+    {"fid": 6,  "name": "KOA6（手良）",           "lat": 35.87172194,  "lon": 138.0164028,  "alt": 806},
+    {"fid": 7,  "name": "KOA7（手良）",           "lat": 35.87127222,  "lon": 138.0160833,  "alt": 791},
+    {"fid": 8,  "name": "おんどとり1,2号機（洗馬）", "lat": 36.1054,      "lon": 137.8796833,  "alt": 1011},
+    {"fid": 9,  "name": "おんどとり3,4号機（洗馬）", "lat": 36.10475,     "lon": 137.8803,     "alt": 960},
+    {"fid": 10, "name": "おんどとり5,6号機（洗馬）", "lat": 36.1041,      "lon": 137.8808167,  "alt": 914},
 ]
 poi_df = pd.DataFrame(poi_data)
 
@@ -67,6 +69,22 @@ if csv_file is not None:
     t_max = float(df[temp_col].max())
     st.write(f"気温範囲: {t_min:.2f} 〜 {t_max:.2f} ℃")
 
+    # グリッド間隔（dlat, dlon）を推定 → 3×3近傍抽出に利用
+    unique_lats = np.sort(df["lat"].unique())
+    unique_lons = np.sort(df["lon"].unique())
+    dlat = np.median(np.diff(unique_lats)) if unique_lats.size > 1 else np.nan
+    dlon = np.median(np.diff(unique_lons)) if unique_lons.size > 1 else np.nan
+    lat_half = 1.1 * dlat if np.isfinite(dlat) else np.nan
+    lon_half = 1.1 * dlon if np.isfinite(dlon) else np.nan
+
+    # データ領域に含まれる観測点だけ抽出
+    lat_min, lat_max = df["lat"].min(), df["lat"].max()
+    lon_min, lon_max = df["lon"].min(), df["lon"].max()
+    poi_in_domain = poi_df[
+        (poi_df["lat"] >= lat_min) & (poi_df["lat"] <= lat_max) &
+        (poi_df["lon"] >= lon_min) & (poi_df["lon"] <= lon_max)
+    ].copy()
+
     # サイドバーで表示パラメータを調整
     st.sidebar.header("表示設定（ポイントマップ）")
 
@@ -82,6 +100,23 @@ if csv_file is not None:
     )
 
     radius = st.sidebar.slider("ポイント半径（ピクセル）", 2, 50, 10, 1)
+
+    # 観測点の選択（チェックボタン）
+    st.sidebar.header("観測点表示・3×3平均")
+    if poi_in_domain.empty:
+        st.sidebar.write("※ このCSVの範囲に含まれる観測点はありません。")
+        selected_poi_df = poi_in_domain.iloc[0:0]  # 空
+    else:
+        st.sidebar.caption("※ チェックした観測点を等温線マップに表示し、周囲3×3ポイントの平均を計算します。")
+        selected_rows = []
+        for idx, row in poi_in_domain.iterrows():
+            checked = st.sidebar.checkbox(row["name"], value=True)
+            if checked:
+                selected_rows.append(row)
+        if selected_rows:
+            selected_poi_df = pd.DataFrame(selected_rows)
+        else:
+            selected_poi_df = poi_in_domain.iloc[0:0]  # 何も選ばれなければ空
 
     # 色付け用の正規化
     def temp_to_color(t):
@@ -124,7 +159,7 @@ if csv_file is not None:
     )
 
     # タブで「ポイントマップ」と「等温線図」を表示
-    tab_point, tab_contour = st.tabs(["🟡 ポイントマップ", "📈 等温線（0.2℃刻み）"])
+    tab_point, tab_contour = st.tabs(["🟡 ポイントマップ", "📈 等温線（0.2℃刻み）＋観測点"])
 
     # -------------------------
     # タブ1: ポイントマップ
@@ -183,26 +218,26 @@ if csv_file is not None:
         # ラベル（値）を付ける
         ax.clabel(c_lines, inline=True, fontsize=8, fmt="%.1f")
 
-        # --- ここから観測点の黒丸＋ラベルを追加 ---
-        poi_lons = poi_df["lon"].values
-        poi_lats = poi_df["lat"].values
+        # --- 観測点の黒丸＋ラベルを追加（選択されたものだけ） ---
+        if not selected_poi_df.empty:
+            poi_lons = selected_poi_df["lon"].values
+            poi_lats = selected_poi_df["lat"].values
 
-        # 黒丸プロット（markersize=5 相当; scatter の s は面積なので 5^2=25 を目安）
-        ax.scatter(poi_lons, poi_lats, c="k", s=25, marker="o", zorder=10)
+            # 黒丸プロット（markersize=5 相当; scatter の s は面積なので 5^2=25 を目安）
+            ax.scatter(poi_lons, poi_lats, c="k", s=25, marker="o", zorder=10)
 
-        # ラベル表示（name）
-        # 少しだけオフセットして文字が点にかぶらないようにする
-        dx = (xs.max() - xs.min()) * 0.002
-        dy = (ys.max() - ys.min()) * 0.002
-        for _, row in poi_df.iterrows():
-            ax.text(
-                row["lon"] + dx,
-                row["lat"] + dy,
-                row["name"],
-                fontsize=8,
-                color="k",
-                zorder=11,
-            )
+            # ラベル表示（name）
+            dx = (xs.max() - xs.min()) * 0.002
+            dy = (ys.max() - ys.min()) * 0.002
+            for _, row in selected_poi_df.iterrows():
+                ax.text(
+                    row["lon"] + dx,
+                    row["lat"] + dy,
+                    row["name"],
+                    fontsize=8,
+                    color="k",
+                    zorder=11,
+                )
 
         # カラーバー
         cbar = fig.colorbar(cf, ax=ax, label=f"{temp_col} (℃)")
@@ -214,10 +249,43 @@ if csv_file is not None:
 
         st.pyplot(fig)
 
+        # -------------------------
+        # 選択された観測点の周囲3×3平均を計算
+        # -------------------------
+        def mean_3x3(slat, slon):
+            """観測点 (slat, slon) 周囲3×3ポイントの平均気温を計算"""
+            if not np.isfinite(lat_half) or not np.isfinite(lon_half):
+                return np.nan, 0
+
+            mask = (
+                (np.abs(df["lat"] - slat) <= lat_half) &
+                (np.abs(df["lon"] - slon) <= lon_half)
+            )
+            sub = df.loc[mask, temp_col]
+            if sub.empty:
+                return np.nan, 0
+            return float(sub.mean()), int(sub.count())
+
+        if not selected_poi_df.empty:
+            results = []
+            for _, row in selected_poi_df.iterrows():
+                mt, npts = mean_3x3(row["lat"], row["lon"])
+                results.append({
+                    "name": row["name"],
+                    "lat": row["lat"],
+                    "lon": row["lon"],
+                    "alt(m)": row["alt"],
+                    "3×3点数": npts,
+                    "3×3平均気温(℃)": None if npts == 0 or not np.isfinite(mt) else round(mt, 3),
+                })
+
+            st.markdown("#### 観測点周囲 3×3 ポイントの平均気温")
+            st.dataframe(pd.DataFrame(results))
+
         st.markdown("""
 ※ この等温線図は、緯度・経度をそのまま平面にプロットした簡易表示です。  
 観測範囲が数 km〜十数 km 程度なら、形はほぼ問題ないはずです。  
-黒丸が観測点（KOA山・おんどとり）、ラベルは name です。
+黒丸が観測点、ラベルは name、下表がその周囲 3×3 ポイントの平均気温です。
 """)
 
 else:
