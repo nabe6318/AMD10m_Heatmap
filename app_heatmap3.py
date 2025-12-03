@@ -5,11 +5,11 @@ import numpy as np
 import pydeck as pdk
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="洗馬気温推定マップ10m標高補正", layout="wide")
+st.set_page_config(page_title="気温推定マップ10m標高補正", layout="wide")
 
 # タイトル（文字サイズを小さくする）
 st.markdown(
-    "<h3 style='text-align: center; font-size:20px;'>洗馬気温推定マップ 10m標高補正 信大作成</h3>",
+    "<h3 style='text-align: center; font-size:20px;'>気温推定マップ 10m標高補正 信大作成</h3>",
     unsafe_allow_html=True
 )
 
@@ -290,3 +290,4 @@ if csv_file is not None:
 
 else:
     st.info("polytemp_10m_YYYYMMDD.csv をアップロードしてください。")
+
