@@ -1,0 +1,16 @@
+streamlit
+pydeck
+streamlit-folium>=0.12.0
+folium
+pandas
+numpy
+matplotlib
+python-dateutil>=2.8.2
+lxml>=4.9.0
+geopandas==0.14.3
+shapely==2.0.3
+fiona==1.9.5
+pyproj==3.6.1
+rtree==1.1.0
+scipy>=1.12.0
+
